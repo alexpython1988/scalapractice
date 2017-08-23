@@ -7,3 +7,6 @@
 *.TXT
 *.txt
 *.bin
+/drawing.xml
+/recttext.xml
+*.xml
