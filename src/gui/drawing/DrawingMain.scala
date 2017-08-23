@@ -28,6 +28,10 @@ import scalafx.scene.control.TreeItem
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
 import scalafx.application.Platform
+import scalafx.stage.FileChooser
+import io.LoanPattern._
+import scalafx.scene.control.Alert.AlertType
+import scalafx.scene.control.Alert
 
 object DrawingMain extends JFXApp{
   private var drawings = List[(Drawing, TreeView[Drawable])]()
@@ -80,11 +84,66 @@ object DrawingMain extends JFXApp{
       }
       
       openItem.onAction = (ae: ActionEvent) => {
-        
+        val chooser = new FileChooser{
+            title = "Open Drawing"
+          }
+          
+        val file = chooser.showOpenDialog(stage)
+        val fn = file.getName
+        if(file != null){
+          val drawing = if(fn.endsWith(".xml")){
+            val xmlData = xml.XML.loadFile(fn)
+            Drawing(xmlData)
+          }else{
+            withObjectInputStream(file.getAbsolutePath){ ois =>
+              ois.readObject() match {
+                case d: Drawing => 
+                  println(d)
+                  d
+                case _ =>
+                  new Alert(AlertType.Information){
+                    title = "Bad content"
+                    headerText = "Load Fail"
+                    contentText = s"No drawing is found in file: ${fn}."
+                  }.showAndWait()
+                  null  
+              }
+            }
+          }
+          
+          if(drawing != null){
+            //println(1)
+            val (tab, tree) = createTabs(drawing, fn)
+            drawings  = drawings :+ drawing -> tree
+            tabPane += tab
+            drawing.draw()
+          }
+        }
       }
       
       saveItem.onAction = (ae: ActionEvent) => {
+        val current = tabPane.selectionModel().selectedIndex()
         
+        if(current >= 0){
+          val (drawing, _) = drawings(current)
+          val chooser = new FileChooser{
+            title = "Save Drawing"
+          }
+          
+          val file = chooser.showSaveDialog(stage)
+          if(file != null){
+            if(file.getName.endsWith(".xml")){
+              val xmlData = drawing.toXML
+              xml.XML.save(file.getAbsolutePath, xmlData)
+            }else{
+              withObjectOutputStream(file.getAbsolutePath){ oos =>
+                oos.writeObject(drawing)
+              }
+            }
+            
+            tabPane.tabs(current).text = file.getName
+          }
+        }
       }
       
       addItem.onAction = (ae: ActionEvent) => {

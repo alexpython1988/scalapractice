@@ -10,7 +10,7 @@ import scalafx.event.ActionEvent
 import scalafx.Includes._
 
 class DrawMaze(val drawing: Drawing) extends Drawable {
-  private var propPanel: Option[Node] = None
+  @transient private var propPanel: Node = null
   private var startX, startY = 0
   private var endX, endY = 9
   private val offsets = Vector((1,0),(-1,0),(0,1),(0,-1))
@@ -30,7 +30,7 @@ class DrawMaze(val drawing: Drawing) extends Drawable {
     Array(0, 0, 0, 1, 0, 0, 0, 0, 1, 0))
   
   def propertiesPane: Node = {
-    if(propPanel.isEmpty){
+    if(propPanel != null){
       val panel = new VBox
       val bfs = new Button("BreadthFirst Search")
       bfs.onAction = (ae: ActionEvent) => {
@@ -41,10 +41,15 @@ class DrawMaze(val drawing: Drawing) extends Drawable {
       }
       
       panel.children = List(bfs)
-      propPanel = Some(panel)
+      propPanel = panel
     }
     
-    propPanel.get
+    propPanel
+  }
+  
+ def toXML: xml.Node = {
+    <drawable type="Maze">
+		</drawable>
   }
   
   def draw(gc: GraphicsContext): Unit = {
@@ -86,7 +91,11 @@ class DrawMaze(val drawing: Drawing) extends Drawable {
     override def toString: String = "Maze"
 }
 
-
+object DrawMaze{
+  def apply(d: Drawing, node: xml.Node): DrawMaze = {
+    new DrawMaze(d)
+  }
+}
 
 
 
