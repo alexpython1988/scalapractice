@@ -32,6 +32,13 @@ import scalafx.stage.FileChooser
 import io.LoanPattern._
 import scalafx.scene.control.Alert.AlertType
 import scalafx.scene.control.Alert
+import java.net.ServerSocket
+import java.io.ObjectInputStream
+import java.io.BufferedInputStream
+import scalafx.scene.control.TextInputDialog
+import java.net.Socket
+import java.io.ObjectOutputStream
+import java.io.BufferedOutputStream
 
 object DrawingMain extends JFXApp{
   private var drawings = List[(Drawing, TreeView[Drawable])]()
@@ -42,7 +49,7 @@ object DrawingMain extends JFXApp{
         "Text" -> (d => new DrawText(200, 200, "The Text", Color.Black, d)),
         "maze" -> (d => new DrawMaze(d))
       )
-  
+  val tabPane = new TabPane
   stage = new JFXApp.PrimaryStage{ //anonemous class
     title = "Drawing Program"
     scene = new Scene(800, 600){
@@ -68,19 +75,24 @@ object DrawingMain extends JFXApp{
       val cutItem = new MenuItem("Cut")
       editMenu.items = List(addItem, copyItem, pasteItem, cutItem)
       
-      menuBar.menus = List(fileMenu, editMenu)
+      val collaborateMenu = new Menu("Collaborate")
+      val acceptItem = new MenuItem("accept drawings")
+      val sendItem = new MenuItem("send drawing")
+      val joinItem = new MenuItem("join collaboration")
+      collaborateMenu.items = List(acceptItem, sendItem, joinItem)
       
-      val tabPane = new TabPane
-      val firstDrawing = new Drawing
-      val (tab, tree) = createTabs(firstDrawing, "Untitled")
-      drawings = drawings :+ firstDrawing -> tree
-      tabPane += tab
+      menuBar.menus = List(fileMenu, editMenu, collaborateMenu)
+      
+      addDrawing(new Drawing, "Untitled")
+//      val (tab, tree) = createTabs(firstDrawing, "Untitled")
+//      drawings = drawings :+ firstDrawing -> tree
+//      tabPane += tab
       
       newItem.onAction = (ae: ActionEvent) => {
-        val newDrawing = new Drawing
-        val (tab, tree) = createTabs(firstDrawing, "Untitled")
-        drawings  = drawings :+ newDrawing -> tree
-        tabPane += tab
+        addDrawing(new Drawing, "Untitled")
+//        val (tab, tree) = createTabs(firstDrawing, "Untitled")
+//        drawings  = drawings :+ newDrawing -> tree
+//        tabPane += tab
       }
       
       openItem.onAction = (ae: ActionEvent) => {
@@ -113,10 +125,11 @@ object DrawingMain extends JFXApp{
           
           if(drawing != null){
             //println(1)
-            val (tab, tree) = createTabs(drawing, fn)
-            drawings  = drawings :+ drawing -> tree
-            tabPane += tab
-            drawing.draw()
+            addDrawing(drawing, fn)
+//            val (tab, tree) = createTabs(drawing, fn)
+//            drawings  = drawings :+ drawing -> tree
+//            tabPane += tab
+//            drawing.draw()
           }
         }
       }
@@ -180,8 +193,20 @@ object DrawingMain extends JFXApp{
       }
       
       exitItem.onAction = (ae: ActionEvent) => {
-        //TODO Save all the tabs
         sys.exit(0)
+      }
+      
+      acceptItem.onAction = (ae:ActionEvent) => {
+        startServer()
+        acceptItem.disable = true
+      }
+      
+      sendItem.onAction = (ae:ActionEvent) => {
+        sendDrawing()
+      }
+       
+      joinItem.onAction = (ae:ActionEvent) => {
+        
       }
       
       val rootPane = new BorderPane
@@ -189,7 +214,7 @@ object DrawingMain extends JFXApp{
       rootPane.top = menuBar
       rootPane.center = tabPane
       root = rootPane
-    }
+    }    
   }
   
   private def createTabs(drawing: Drawing, title: String): (Tab, TreeView[Drawable]) = {
@@ -293,6 +318,59 @@ object DrawingMain extends JFXApp{
 //     
 //     return List(fileMenu, editMenu)
 //  }
+  
+  private def startServer(): Unit = {
+    Future {
+      val sskt = new ServerSocket(8088)
+      while(true){
+        val skt = sskt.accept()
+        val ois = new ObjectInputStream(new BufferedInputStream(skt.getInputStream))
+        val title = ois.readUTF()
+        ois.readObject() match {
+          case d: Drawing =>
+            Platform.runLater(addDrawing(d, title))
+          case _ => 
+            println("No drawing received.")
+        }
+        ois.close()
+        skt.close()
+      }
+    }
+  }
+  
+  private def addDrawing(d: Drawing, name:String): Unit = {
+    val (tab, tree) = createTabs(d, "Untitled")
+    drawings = drawings :+ d -> tree
+    tabPane += tab
+    d.draw()
+  }
+  
+  private def sendDrawing(): Unit = {
+    val current = tabPane.selectionModel().selectedIndex()
+    if(current >= 0){
+      val (d, _) = drawings(current)
+      val host = showInputDialog("Choose a machine send to...", "machine name")
+      host.foreach { m =>  
+        val skt = new Socket(m, 8088)
+        val oos = new ObjectOutputStream(new BufferedOutputStream(skt.getOutputStream))
+        val title = showInputDialog("title of the drawing?", "drawing title")
+        title.foreach { t =>  
+          oos.writeUTF(t)
+          oos.writeObject(d)
+          oos.close()
+          skt.close()
+        }
+      }
+    }
+    
+  }
+  
+  private def showInputDialog(msg:String, title: String): Option[String] = {
+    val dialog = new TextInputDialog
+    dialog.title = title
+    dialog.contentText = msg
+    dialog.showAndWait()
+  }
 }
 
 
